@@ -93,6 +93,10 @@ for (let i = 0; i < Math.min(3, radar.category_rollup.length); i++) {
   const c = radar.category_rollup[i]!;
   process.stdout.write(`token radar: top category ${i + 1}: ${c.category} (${c.count} protocols, implied $${c.total_implied_usd}, ${Number((c.share_of_implied * 100).toFixed(2))}% of board)\n`);
 }
+for (let i = 0; i < radar.top_growers.length; i++) {
+  const g = radar.top_growers[i]!;
+  process.stdout.write(`token radar: top grower ${i + 1}: ${g.slug} (${g.name}, ${g.category}, ${g.change_7d > 0 ? '+' : ''}${g.change_7d.toFixed(1)}% 7d, implied $${g.implied_value_usd})\n`);
+}
 process.stdout.write(`token radar: dossier.json byte size: ${dossierBytes}\n`);
 
 process.stdout.write(

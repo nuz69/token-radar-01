@@ -130,6 +130,17 @@ export interface RadarRow {
   category_share: number;
 }
 
+/** A top grower protocol on the board, sorted by 7d change. */
+export interface TopGrower {
+  rank: number;
+  slug: string;
+  name: string;
+  category: string;
+  change_7d: number;
+  tvl_usd: number;
+  implied_value_usd: number;
+}
+
 /** A live-token protocol: it already trades, so the board shows the market's own value, not a model's. */
 export interface LiveRow {
   slug: string;
@@ -167,6 +178,7 @@ export interface RadarData {
   rows: RadarRow[];
   live: LiveRow[];
   category_rollup: CategoryRollup[];
+  top_growers: TopGrower[];
 }
 
 /** Why the snapshot is not one this model can score. */
@@ -483,6 +495,23 @@ export function radarRow(row: BoardRow): RadarRow {
   };
 }
 
+/** The top growers among board rows, sorted by change_7d descending. */
+export function topGrowers(rows: RadarRow[], n: number): TopGrower[] {
+  if (n <= 0) return [];
+  const valid = rows.filter((r) => typeof r.change_7d === 'number' && Number.isFinite(r.change_7d));
+  if (valid.length === 0) return [];
+  valid.sort((a, b) => (b.change_7d! - a.change_7d!) || a.rank - b.rank);
+  return valid.slice(0, n).map((r) => ({
+    rank: r.rank,
+    slug: r.slug,
+    name: r.name,
+    category: r.category ?? 'Other',
+    change_7d: r.change_7d!,
+    tvl_usd: r.tvl_usd,
+    implied_value_usd: r.implied_value_usd,
+  }));
+}
+
 /** Compute category rollups across board rows. */
 export function categoryRollup(rows: RadarRow[]): CategoryRollup[] {
   const map = new Map<string, {
@@ -555,6 +584,7 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
     rows,
     live,
     category_rollup: categoryRollup(rows),
+    top_growers: topGrowers(rows, 5),
   };
   return { board, radar };
 }
