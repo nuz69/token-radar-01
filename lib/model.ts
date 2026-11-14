@@ -141,6 +141,18 @@ export interface LiveRow {
   change_7d: number | null;
 }
 
+/** Summary of metrics per category on the board. */
+export interface CategoryRollup {
+  category: string;
+  count: number;
+  total_tvl_usd: number;
+  total_implied_usd: number;
+  share_of_implied: number;
+  top_slug: string;
+  top_name: string;
+  top_implied_usd: number;
+}
+
 /** Everything the dashboard needs: the board, the live set, and the model it runs. */
 export interface RadarData {
   as_of: string;
@@ -154,6 +166,7 @@ export interface RadarData {
   live_size: number;
   rows: RadarRow[];
   live: LiveRow[];
+  category_rollup: CategoryRollup[];
 }
 
 /** Why the snapshot is not one this model can score. */
@@ -470,11 +483,65 @@ export function radarRow(row: BoardRow): RadarRow {
   };
 }
 
+/** Compute category rollups across board rows. */
+export function categoryRollup(rows: RadarRow[]): CategoryRollup[] {
+  const map = new Map<string, {
+    count: number;
+    tvlSum: number;
+    impliedSum: number;
+    top: RadarRow | null;
+  }>();
+
+  for (const r of rows) {
+    const cat = r.category || 'Other';
+    let entry = map.get(cat);
+    if (!entry) {
+      entry = { count: 0, tvlSum: 0, impliedSum: 0, top: null };
+      map.set(cat, entry);
+    }
+    entry.count += 1;
+    entry.tvlSum += r.tvl_usd;
+    entry.impliedSum += r.implied_value_usd;
+    if (
+      !entry.top ||
+      r.implied_value_usd > entry.top.implied_value_usd ||
+      (r.implied_value_usd === entry.top.implied_value_usd && r.tvl_usd > entry.top.tvl_usd) ||
+      (r.implied_value_usd === entry.top.implied_value_usd && r.tvl_usd === entry.top.tvl_usd && r.slug < entry.top.slug)
+    ) {
+      entry.top = r;
+    }
+  }
+
+  const grandTotalImplied = rows.reduce((sum, r) => sum + r.implied_value_usd, 0);
+
+  const rollups: CategoryRollup[] = [];
+  for (const [cat, data] of map.entries()) {
+    const total_tvl_usd = Math.round(data.tvlSum);
+    const total_implied_usd = Math.round(data.impliedSum);
+    const share_of_implied = grandTotalImplied > 0 ? round4(total_implied_usd / grandTotalImplied) : 0;
+    const top = data.top!;
+    rollups.push({
+      category: cat,
+      count: data.count,
+      total_tvl_usd,
+      total_implied_usd,
+      share_of_implied,
+      top_slug: top.slug,
+      top_name: top.name,
+      top_implied_usd: Math.round(top.implied_value_usd),
+    });
+  }
+
+  rollups.sort((a, b) => b.total_implied_usd - a.total_implied_usd || (a.category < b.category ? -1 : a.category > b.category ? 1 : 0));
+  return rollups;
+}
+
 /** Everything the dashboard renders, from the snapshot. */
 export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): { board: BoardRow[]; radar: RadarData } {
   const board = buildBoard(snapshot, model);
   const live = liveRows(snapshot);
   const early = board.filter((r) => !snapshot.watchlist.includes(r.slug)).length;
+  const rows = board.map(radarRow);
   const radar: RadarData = {
     as_of: snapshot.as_of,
     source: snapshot.source,
@@ -485,8 +552,9 @@ export function buildRadar(snapshot: Snapshot, model: ModelConstants = MODEL): {
     board_size: board.length,
     early_size: early,
     live_size: live.length,
-    rows: board.map(radarRow),
+    rows,
     live,
+    category_rollup: categoryRollup(rows),
   };
   return { board, radar };
 }

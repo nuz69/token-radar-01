@@ -89,6 +89,10 @@ const dossierBytes = statSync(join(out, 'dossier.json')).size;
 for (const r of board.slice(0, 5)) {
   process.stdout.write(`token radar: top row ${r.rank}: slug=${r.slug}, implied_value_usd=${r.implied_value_usd}\n`);
 }
+for (let i = 0; i < Math.min(3, radar.category_rollup.length); i++) {
+  const c = radar.category_rollup[i]!;
+  process.stdout.write(`token radar: top category ${i + 1}: ${c.category} (${c.count} protocols, implied $${c.total_implied_usd}, ${Number((c.share_of_implied * 100).toFixed(2))}% of board)\n`);
+}
 process.stdout.write(`token radar: dossier.json byte size: ${dossierBytes}\n`);
 
 process.stdout.write(
